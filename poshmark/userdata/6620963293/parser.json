@@ -1,0 +1,30 @@
+{
+  "selected_categories": [
+    "/category/Women",
+    "/category/Men",
+    "/category/Kids",
+    "/category/Home",
+    "/category/Pets",
+    "/category/Electronics"
+  ],
+  "cycle_delay": 2.0,
+  "request_delay": 0.3,
+  "max_concurrent": 10,
+  "items_per_page": 30,
+  "max_sales": 0,
+  "max_reviews": 0,
+  "auto_send": true,
+  "delay_min": 17,
+  "delay_max": 24,
+  "proxies": [],
+  "proxy_idx": 0,
+  "rotate_every": {
+    "sender": 0,
+    "title": 0,
+    "text": 0,
+    "button": 0,
+    "link": 0,
+    "subject": 0
+  },
+  "send_counter": 136
+}

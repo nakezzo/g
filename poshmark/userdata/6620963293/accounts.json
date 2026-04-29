@@ -1,0 +1,29 @@
+[
+  {
+    "email": "freemanlors@seznam.cz",
+    "password": "Denis228335@",
+    "enabled": true,
+    "sent_count": 37,
+    "error_count": 3,
+    "last_error": "SSL/465 SMTPServerDisconnected: Connection unexpectedly closed | STARTTLS/587 SMTPServerDisconnected",
+    "send_limit": 0
+  },
+  {
+    "email": "ragerroger@seznam.cz",
+    "password": "Denis228335@",
+    "enabled": true,
+    "sent_count": 36,
+    "error_count": 2,
+    "last_error": "SSL/465 ConnectionResetError: [WinError 10054] Удаленный хост принудительно разорвал существующее по",
+    "send_limit": 0
+  },
+  {
+    "email": "dorelodnod@seznam.cz",
+    "password": "Denis228335@",
+    "enabled": true,
+    "sent_count": 35,
+    "error_count": 2,
+    "last_error": "SSL/465 ConnectionResetError: [WinError 10054] Удаленный хост принудительно разорвал существующее по",
+    "send_limit": 0
+  }
+]

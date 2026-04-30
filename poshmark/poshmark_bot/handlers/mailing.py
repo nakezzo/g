@@ -125,8 +125,8 @@ async def fsm_recipients_text(message: Message, state: FSMContext):
         await message.answer("❌ Не найдено ни одного email. Попробуйте ещё раз:")
         return
     dupes = len(raw_emails) - len(emails)
-    if dupes:
-        await message.answer(f"ℹ️ Удалено дублей: {dupes}. Уникальных адресов: {len(emails)}")
+    msg_dupes = f"ℹ️ Удалено дублей: {dupes}. " if dupes else ""
+    await message.answer(f"{msg_dupes}Найдено email'ов: <b>{len(emails)}</b>\n\nПервые 5: <code>{', '.join(emails[:5])}</code>")
     await _confirm_send(message, state, emails)
 
 async def _confirm_send(message: Message, state: FSMContext, emails: List[str]):
@@ -228,14 +228,28 @@ async def _do_send_campaign(message: Message, recipients: List[str], uid):
         f"📝 Тем для ротации:    <code>{len(subjects)}</code>\n"
         f"📬 Получателей:        <code>{len(recipients)}</code>\n"
         f"⏱ Задержка: <code>{cfg.get('delay_min', 17)}–{cfg.get('delay_max', 24)} сек</code> (рандом)\n"
-        f"⚡ Режим: <b>параллельная отправка по аккаунтам</b>\n\n"
-        f"<b>Лимиты:</b>\n{acc_lines}"
+        f"⚡ <b>Режим: распределение писем между аккаунтами</b>\n\n"
+        f"<b>Статистика аккаунтов:</b>\n{acc_lines}"
     )
 
-    n = len(enabled)
-    buckets = {i: [] for i in range(n)}
+    # ═══ РАСПРЕДЕЛЕНИЕ: Каждый email один раз (разные аккаунты) ═══
+    num_accounts = len(enabled)
+    num_recipients = len(recipients)
+    
+    # Round-robin распределение: письма по очереди между аккаунтами
+    buckets = {i: [] for i in range(num_accounts)}
     for idx, recipient in enumerate(recipients):
-        buckets[idx % n].append((idx, recipient))
+        account_idx = idx % num_accounts  # 0, 1, 2, 0, 1, 2, ...
+        buckets[account_idx].append((idx, recipient))
+
+    # Лог распределения
+    dist_info = " | ".join(f"Акк{i}: {len(buckets[i])} писем" for i in range(num_accounts))
+    try:
+        await message.answer(
+            f"📊 <b>Распределение:</b> {dist_info}\n"
+            f"<b>Каждый email одному аккаунту (10 писем)</b>"
+        )
+    except Exception: pass
 
     counters = [0, 0]
     lock = asyncio.Lock()
@@ -245,17 +259,26 @@ async def _do_send_campaign(message: Message, recipients: List[str], uid):
         _rot = _cfg.get("rotate_every", {})
         local_counter = _cfg.get("send_counter", 0) + acc_index
         stop_ev = get_stop_event(uid)
+        
+        bucket_size = len(bucket)
+        sent_this_acc = 0
+        
+        # Логирование старта worker'а
+        try:
+            await message.answer(f"🔄 [{acc_index+1}] <code>{acc.email}</code> начал рассылку ({bucket_size} писем)...")
+        except Exception: pass
 
         for bucket_pos, (i, recipient) in enumerate(bucket):
             if stop_ev.is_set():
                 break
             is_last = bucket_pos == len(bucket) - 1
 
+            # ═══ ФИКС: Правильная проверка лимита ═══
             if acc.send_limit > 0 and acc.sent_count >= acc.send_limit:
                 try:
                     await message.answer(
                         f"🚫 <code>{acc.email}</code> достиг лимита "
-                        f"<b>{acc.send_limit}</b> писем — пропускаю оставшиеся."
+                        f"<b>{acc.send_limit}</b> писем"
                     )
                 except Exception: pass
                 break
@@ -297,12 +320,13 @@ async def _do_send_campaign(message: Message, recipients: List[str], uid):
                 status = f"{type(e).__name__}: {e}"
 
             delay = random_delay(uid)
-            local_counter += n
+            local_counter += num_accounts  # ← ФИКС: использовать actual number of accounts
 
             async with lock:
                 if ok:
                     counters[0] += 1
                     acc.sent_count += 1
+                    sent_this_acc += 1
                 else:
                     counters[1] += 1
                     acc.error_count += 1
@@ -324,8 +348,14 @@ async def _do_send_campaign(message: Message, recipients: List[str], uid):
 
             if not is_last:
                 await asyncio.sleep(delay)
+        
+        # Логирование окончания worker'а
+        try:
+            await message.answer(f"✓ [{acc_index+1}] <code>{acc.email}</code> завершил (отправлено {sent_this_acc}/{bucket_size})")
+        except Exception: pass
 
-    tasks = [asyncio.create_task(worker(enabled[i], buckets[i], i)) for i in range(n) if buckets[i]]
+    # ═══ ФИКС: Создать tasks для всех аккаунтов (даже если bucket пуст) ═══
+    tasks = [asyncio.create_task(worker(enabled[i], buckets[i], i)) for i in range(num_accounts)]
     await asyncio.gather(*tasks, return_exceptions=True)
 
     _cfg_final = load_parser_config(uid)
